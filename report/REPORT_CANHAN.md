@@ -132,6 +132,8 @@ Chiến lược của tôi: **`HeadingChunker`** — chia theo tiêu đề/mục
 
 **Phân tích câu trượt (Q1).** Chunk đúng là `Quy trình xử lý yêu cầu trả hàng > 3. Phân loại phương án xử lý Trả hàng/ Hoàn tiền của Shopee`, chứa câu "hoàn tất việc gửi trả hàng... trong vòng 6 ngày". Nó xếp hạng 13/60 với score 0.717, không quá xa top-1 (0.825). Nguyên nhân nằm ở chính điểm mạnh của chiến lược: breadcrumb tiêu đề được ghép vào đầu mỗi chunk, nhưng tiêu đề "Phân loại phương án xử lý" **không hề nhắc tới thời hạn**, trong khi ba chunk đứng đầu đều có chữ "điều kiện và thời hạn" ngay trên tiêu đề. Breadcrumb giúp chunk tự mô tả được ngữ cảnh, nhưng khi tiêu đề mô tả sai trọng tâm của phần thân thì nó lại kéo embedding đi chệch hướng.
 
+**Đề xuất cải thiện cho câu trượt (Bài tập 3.5).** Tôi chạy A/B tắt breadcrumb (`include_parent_headings=False`) trên cùng corpus: chunk đúng của câu 1 lên từ hạng 13/60 lên hạng 9/60 và câu 1 được 1 điểm thay vì 0 — xác nhận đúng chẩn đoán trên. Nhưng câu 4 lại rơi từ 2 điểm xuống 1, tổng vẫn 8/10. Nên hướng sửa đúng không phải tắt breadcrumb, mà là **embed riêng phần thân chunk còn breadcrumb chỉ dùng khi hiển thị** — giữ được ngữ cảnh cho agent mà không để tiêu đề làm nhiễu vector. Hướng thứ hai đã có bằng chứng: `RecursiveChunker` (chunk_size=500) lấy trọn 2 điểm ở chính câu 1 này, nên kết hợp hai kho rồi trộn thứ hạng sẽ ăn được cả hai phía. Tôi đã loại phương án tăng `top_k` vì chunk đúng ở hạng 13, phải nâng `top_k` lên 13 mới cứu được và như vậy kéo quá nhiều nhiễu vào ngữ cảnh.
+
 **Đánh đổi của chiến lược heading.** Điểm được: chunk bám đúng ranh giới điều khoản, không cắt ngang câu, và chunk top-1 của Q2 chỉ dài 171 ký tự nên câu trả lời cực kỳ sắc. Điểm mất: chất lượng phụ thuộc hoàn toàn vào chất lượng tiêu đề của nguồn. Hai tài liệu (`shopee-instant-refund`, `shopee-return-restrictions`) không có mục nào nên vẫn là một chunk nguyên khối hơn 1200 ký tự, và `shopee-refund-timeline` ban đầu là bảng bị crawler làm phẳng, phải làm sạch tay (thêm heading cho từng phương thức hoàn tiền) mới tách được từ 1 chunk thành 11 chunk.
 
 **Điều hay nhất tôi học được từ thành viên khác / nhóm khác (qua demo):**
@@ -143,9 +145,9 @@ Chiến lược của tôi: **`HeadingChunker`** — chia theo tiêu đề/mục
 
 | Tiêu chí | Điểm tự đánh giá |
 |----------|-------------------|
-| Khởi động (Warm-up) | / 5 |
-| Hướng tiếp cận của tôi (My Approach) | / 10 |
-| Hoàn thiện code (Core Implementation — tests) | / 30 |
-| Dự đoán độ tương tự (Similarity Predictions) | / 5 |
-| Kết quả truy xuất của tôi (Competition Results) | / 10 |
-| **Tổng phần cá nhân** | **/ 60** |
+| Khởi động (Warm-up) | 4/ 5 |
+| Hướng tiếp cận của tôi (My Approach) | 8/ 10 |
+| Hoàn thiện code (Core Implementation — tests) | 30/ 30 |
+| Dự đoán độ tương tự (Similarity Predictions) | 4/ 5 |
+| Kết quả truy xuất của tôi (Competition Results) | 8/ 10 |
+| **Tổng phần cá nhân** | **54/ 60** |

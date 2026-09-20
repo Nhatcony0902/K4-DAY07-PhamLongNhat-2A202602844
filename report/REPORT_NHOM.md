@@ -226,11 +226,55 @@ Cả 5 câu trả lời chuẩn đã được đối chiếu ngược lại corp
 **Điểm cao nhất nhóm đạt được:** 9/10 (`RecursiveChunker` 800). Nếu ghép điểm tốt nhất của từng câu trên toàn nhóm thì được **10/10** — câu 1 lấy từ `RecursiveChunker` (500), bốn câu còn lại từ `HeadingChunker`. Điều này cho thấy một hệ thống thật nên kết hợp nhiều chiến lược chia nhỏ thay vì chọn một.
 
 **Lọc bằng metadata có giúp ích không? Ở câu hỏi nào?**
-> Có, rõ nhất ở câu 5 — câu duy nhất hỏi về nghĩa vụ của người bán. Với `metadata_filter={"audience": "seller"}`, không gian tìm kiếm thu từ 60 chunk xuống còn 6 chunk của `shopee-return-policy-seller`, và cả top-3 đều nằm trong tài liệu đúng đối tượng.
+
+Nhóm đo A/B trực tiếp `search()` với `search_with_filter()` trên cùng câu 5, cùng chiến lược `HeadingChunker`:
+
+| Hạng | Không lọc — `search()` | Có lọc — `search_with_filter({"audience": "seller"})` |
+|---|---|---|
+| 1 | `policy-seller#c2` — 0.783 — `audience: seller` | `policy-seller#c2` — 0.783 — `seller` |
+| 2 | `policy-seller#c5` — 0.685 — `audience: seller` | `policy-seller#c5` — 0.685 — `seller` |
+| 3 | `refund-timeline#c10` — 0.685 — **`audience: buyer`** | `policy-seller#c6` — 0.619 — `seller` |
+| Có "2 ngày lịch" trong top-3? | **Có** | **Có** |
+| Số chunk ứng viên | 60 | 6 |
+
+> **Kết quả trung thực hơn nhóm dự đoán ban đầu: bộ lọc cải thiện độ chính xác nhưng không đổi được câu trả lời.** Không lọc, top-1 đã đúng ngay (0.783) và đáp án "2 ngày lịch" vẫn nằm trong top-3. Bộ lọc chỉ thay đổi đúng vị trí thứ 3, đẩy một chunk `buyer` (`Thời gian nhận tiền hoàn > Lưu ý chung`, 0.685) ra khỏi kết quả. Tính theo độ chính xác top-3 thì lọc nâng từ 2/3 lên 3/3 chunk đúng đối tượng — có cải thiện thật, nhưng không phải mức "không lọc thì sai" như nhóm tưởng.
+>
+> **Vì sao tác dụng lại nhỏ như vậy — hai nguyên nhân.** Thứ nhất, chính câu hỏi đã chứa cụm "người bán", nên embedding tự nó đã kéo về đúng tài liệu mà không cần metadata. Thứ hai, corpus lệch 9 `buyer` / 1 `seller`: sau khi lọc chỉ còn 6 chunk trên tổng 60, nên bộ lọc gần như không có gì để chọn lựa — nó loại bỏ nhiễu chứ không tạo ra khả năng phân biệt mới.
+>
+> **Đánh đổi độ thu hồi (recall trade-off).** Lọc thu không gian tìm kiếm còn 10% (60 → 6 chunk). Ở câu 5 điều đó vô hại vì đáp án chắc chắn nằm trong tài liệu `seller`. Nhưng nếu một câu hỏi cần đối chiếu cả hai phía — ví dụ "người mua và người bán mỗi bên có bao nhiêu ngày để phản hồi" — thì cùng bộ lọc đó sẽ cắt mất một nửa câu trả lời. Bộ lọc chỉ an toàn khi đã biết chắc đáp án nằm trọn trong một phân vùng.
+>
+> **Lý do vẫn phải thiết kế trường `audience` ngay từ khâu thu thập:** nhóm đo độ tương tự giữa "Người mua có 7 ngày để gửi yêu cầu trả hàng" và "Người bán phải phản hồi khiếu nại trong 2 ngày lịch" được **0.506** — gần như không phân biệt nổi. Với câu hỏi không chứa sẵn từ khóa "người bán"/"người mua", embedding sẽ không tự tách được hai phía, và khi đó bộ lọc mới là thứ duy nhất cứu được.
 > Lý do cần lọc chứ không phó mặc cho embedding: nhóm đo độ tương tự giữa "Người mua có 7 ngày để gửi yêu cầu trả hàng" và "Người bán phải phản hồi khiếu nại trong 2 ngày lịch" được **0.506** — gần như không phân biệt nổi. Hai câu này cùng chủ đề, cùng cấu trúc, cùng nói về một mốc thời gian; thứ khác nhau là *ai* phải làm, mà đó đúng là thứ embedding không mã hóa tốt. Không lọc thì câu 5 rất dễ trả về điều khoản dành cho người mua.
 > Mặt trái cần nói thật: corpus hiện lệch 9 `buyer` / 1 `seller`, nên khi lọc `seller` thì chỉ còn đúng một tài liệu — câu 5 gần như chắc chắn trúng, và vì thế nó không phân biệt được chiến lược chunking giữa các thành viên. Nếu mở rộng corpus, nhóm nên bổ sung tài liệu `seller` để phép lọc vừa có ý nghĩa vừa còn tính cạnh tranh.
 
 ---
+
+## 3b. Phân tích lỗi (Failure Analysis) — Bài tập 3.5
+
+### Trường hợp lỗi: Câu 1 — "Thời hạn gửi trả sản phẩm sau khi được chấp nhận"
+
+**Truy xuất thất bại ở đâu.** Với `HeadingChunker`, chunk chứa đáp án ("hoàn tất việc gửi trả hàng... trong vòng **6 ngày**") xếp **hạng 13/60**, score 0.717 — không lọt top-3, nên câu này được **0 điểm**. `SentenceChunker` cũng 0 điểm ở mọi giá trị `max`. Ba chunk chiếm top-3 đều đến từ `shopee-return-conditions` và `shopee-return-policy-buyer`.
+
+**Nguyên nhân gốc.** Đáp án nằm dưới tiêu đề mục `3. Phân loại phương án xử lý Trả hàng/ Hoàn tiền của Shopee` — tiêu đề này **không chứa bất kỳ từ nào về thời hạn**. Trong khi đó, ba chunk đứng đầu có sẵn cụm "điều kiện và **thời hạn**" ngay trên tiêu đề. Vì `HeadingChunker` ghép breadcrumb tiêu đề vào đầu mỗi chunk trước khi embed, tiêu đề mô tả sai trọng tâm phần thân đã kéo vector đi chệch hướng. Đây không phải lỗi chunk quá to hay quá nhỏ — chunk chỉ 573 ký tự, kích thước hợp lý — mà là lỗi **nhiễu ngữ nghĩa do chính đặc trưng được thêm vào**.
+
+**Bằng chứng thực nghiệm.** Nhóm chạy A/B tắt/bật breadcrumb trên cùng corpus và cùng 5 câu hỏi:
+
+| Cấu hình | Điểm từng câu | Tổng | Hạng chunk đúng ở câu 1 |
+|---|---|---|---|
+| `include_parent_headings=True` (có breadcrumb) | 0, 2, 2, 2, 2 | 8/10 | 13/60 |
+| `include_parent_headings=False` (không breadcrumb) | 1, 2, 2, 1, 2 | 8/10 | **9/60** |
+
+Tắt breadcrumb kéo chunk đúng từ hạng 13 lên hạng 9 và câu 1 từ 0đ lên 1đ — xác nhận đúng chẩn đoán. Nhưng câu 4 lại rơi từ 2đ xuống 1đ, tổng vẫn 8/10. **Breadcrumb không phải lỗi cần sửa, mà là một đánh đổi đối xứng**: nó giúp ở câu mà tiêu đề mô tả đúng nội dung, và hại đúng ở câu mà tiêu đề mô tả sai.
+
+### Đề xuất cải thiện, xếp theo mức độ đã kiểm chứng
+
+1. **Kết hợp nhiều chiến lược thay vì chọn một (đã có bằng chứng).** `RecursiveChunker` với `chunk_size=500` là cấu hình **duy nhất** trong cả nhóm lấy trọn 2 điểm ở câu 1, vì nó cắt theo ranh giới đoạn và không gắn tiêu đề nên không bị tiêu đề đánh lừa. Ghép điểm tốt nhất từng câu trên toàn nhóm cho **10/10** so với 9/10 của chiến lược đơn lẻ mạnh nhất. Cách làm: nạp song song hai kho — một chia theo mục, một chia đệ quy — rồi trộn kết quả (reciprocal rank fusion).
+
+2. **Tách văn bản đem embed khỏi văn bản đem hiển thị (chưa kiểm chứng).** Embed **chỉ phần thân** chunk để tiêu đề không làm nhiễu vector, nhưng vẫn **giữ breadcrumb ở nội dung trả về** để agent biết chunk thuộc điều khoản nào. Cách này giữ được cả hai lợi ích, trong khi A/B ở trên buộc phải chọn một.
+
+3. **Khôi phục tiêu đề cho 7 tài liệu còn lại (đã có bằng chứng gián tiếp).** Nhóm chỉ làm sạch tay `shopee-refund-timeline`, và riêng tài liệu đó `HeadingChunker` tách được 1 chunk thành 11 rồi lấy trọn 2 điểm ở câu 2. Bảy tài liệu khác vẫn còn mục điều khoản nằm dưới dạng dòng văn bản thường, nên chiến lược dựa vào tiêu đề đang bị đánh giá thấp hơn thực lực.
+
+4. **Tăng `top_k` — đã loại.** Nhóm đã cân nhắc và bác bỏ: chunk đúng ở hạng 13/60, nên phải nâng `top_k` lên ít nhất 13 mới cứu được, mức đó kéo theo quá nhiều nhiễu vào ngữ cảnh của agent. Ghi lại ở đây để cho thấy hướng này đã được xem xét chứ không bị bỏ sót.
 
 ## 4. Thuyết trình (Demo) & Bài học nhóm — Nhóm (5 điểm)
 
@@ -261,8 +305,8 @@ Cả 5 câu trả lời chuẩn đã được đối chiếu ngược lại corp
 
 | Tiêu chí | Điểm tự đánh giá |
 |----------|-------------------|
-| Lựa chọn tài liệu (Document Set Quality) | / 10 |
-| Thiết kế chiến lược (Strategy Design) | / 15 |
-| Chất lượng truy xuất (Retrieval Quality) | / 10 |
-| Thuyết trình (Demo) | / 5 |
-| **Tổng phần nhóm** | **/ 40** |
+| Lựa chọn tài liệu (Document Set Quality) | 8/ 10 |
+| Thiết kế chiến lược (Strategy Design) | 10/ 15 |
+| Chất lượng truy xuất (Retrieval Quality) | 8/ 10 |
+| Thuyết trình (Demo) | 3/ 5 |
+| **Tổng phần nhóm** | **29/ 40** |
