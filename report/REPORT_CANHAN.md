@@ -137,7 +137,7 @@ Chiến lược của tôi: **`HeadingChunker`** — chia theo tiêu đề/mục
 **Đánh đổi của chiến lược heading.** Điểm được: chunk bám đúng ranh giới điều khoản, không cắt ngang câu, và chunk top-1 của Q2 chỉ dài 171 ký tự nên câu trả lời cực kỳ sắc. Điểm mất: chất lượng phụ thuộc hoàn toàn vào chất lượng tiêu đề của nguồn. Hai tài liệu (`shopee-instant-refund`, `shopee-return-restrictions`) không có mục nào nên vẫn là một chunk nguyên khối hơn 1200 ký tự, và `shopee-refund-timeline` ban đầu là bảng bị crawler làm phẳng, phải làm sạch tay (thêm heading cho từng phương thức hoàn tiền) mới tách được từ 1 chunk thành 11 chunk.
 
 **Điều hay nhất tôi học được từ thành viên khác / nhóm khác (qua demo):**
-> *Viết 2-3 câu:*
+> khả năng phân tích dữ liệu và phối hợp làm việc nhóm
 
 ---
 
