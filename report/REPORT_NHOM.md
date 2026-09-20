@@ -2,7 +2,7 @@
 
 **Nhóm:** TooSweet
 **Thành viên:** Phạm Long Nhật,Lê Thanh Tình,Trần Xuân Đức,Nguyễn Tiến Lượng,
-**Ngày:** [Ngày nộp]
+**Ngày:** 20/9/2026
 
 > **Nộp 1 bản / nhóm.** Phần cá nhân (hướng tiếp cận, kết quả riêng, dự đoán…) mỗi thành viên nộp riêng trong `REPORT_CANHAN.md`. Chi tiết thang điểm: `docs/SCORING.md`.
 
