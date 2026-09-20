@@ -1,7 +1,7 @@
 # Báo Cáo Nhóm — Lab 7: Embedding & Vector Store
 
 **Nhóm:** TooSweet
-**Thành viên:** [Họ tên từng thành viên]
+**Thành viên:** Phạm Long Nhật,Lê Thanh Tình,Trần Xuân Đức,Nguyễn Tiến Lượng,
 **Ngày:** [Ngày nộp]
 
 > **Nộp 1 bản / nhóm.** Phần cá nhân (hướng tiếp cận, kết quả riêng, dự đoán…) mỗi thành viên nộp riêng trong `REPORT_CANHAN.md`. Chi tiết thang điểm: `docs/SCORING.md`.
@@ -143,26 +143,55 @@ class HeadingChunker:
 
 > **Một lỗi đã gặp và sửa, đáng nói trong demo.** Biểu thức nhận mục đánh số lúc đầu là `^(\d+(?:\.\d+)*)\.?\s+`, khớp mọi dòng mở đầu bằng số và khoảng trắng. Tài liệu "Thời gian nhận tiền hoàn" là bảng đã làm phẳng nên có nhiều dòng dạng `7 - 14 ngày làm việc (tùy theo ngân hàng)` — những dòng này bị nhận nhầm thành tiêu đề mục số 7, sinh ra 9 chunk rác. Siết lại thành `^(\d+(?:\.\d+)+\.?|\d+\.)\s+` (bắt buộc có dấu chấm hoặc nhiều cấp) thì hết.
 
-**Thành viên 2 — [Tên]**
-- **Loại chiến lược:**
-- **Mô tả & lý do chọn:**
-- **Code snippet (nếu custom):**
+**Thành viên 2 — Lê Thanh Tình**
+- **Loại chiến lược:** `FixedSizeChunker` có chồng chéo (overlap) — cấu hình đem chấm: `chunk_size=500, overlap=100`
+- **Mô tả & lý do chọn:** Đây là đường cơ sở không giả định gì về cấu trúc tài liệu, nên luôn chạy được kể cả với 8/10 tài liệu mà crawler chỉ sinh đúng một tiêu đề Markdown. Overlap là phần bù cho nhược điểm cố hữu của việc cắt theo độ dài — ranh giới rơi vào đâu là ngẫu nhiên đối với nội dung — bằng cách bảo đảm mọi đoạn ngắn hơn `overlap` xuất hiện nguyên vẹn trong ít nhất một chunk.
+- **Kết quả:** 99 chunk, trung bình 480 ký tự, **7/10** điểm (điểm từng câu: 1, 1, 2, 1, 2).
+- **Code snippet:** dùng `FixedSizeChunker` có sẵn trong `src/chunking.py`, không sửa đổi.
 
-**Thành viên 3 — [Tên]**
-- **Loại chiến lược:**
-- **Mô tả & lý do chọn:**
-- **Code snippet (nếu custom):**
+> **Phát hiện quan trọng nhất: overlap không làm điểm tăng đơn điệu.** Quét tham số trên cùng 5 câu hỏi cho dãy overlap 0 → 50 → 100 → 200 ra điểm 7 → 6 → 7 → 6. Với cỡ mẫu 5 câu, chênh lệch một điểm nằm trong khoảng nhiễu, nên kết luận trung thực là overlap trong khoảng 0–200 **không tạo khác biệt đo được** ở quy mô này — chứ không phải overlap có hại.
+>
+> **Nhưng overlap có tác dụng thật, chỉ là rubric không nhìn thấy.** Đo thứ hạng của chunk chứa đáp án câu 2 ("7 - 14 ngày làm việc") trong toàn kho: overlap 0 → hạng 9/60, overlap 50 → hạng 7/60, overlap 100 → hạng 4/60, overlap 200 → hạng 5/60. Overlap kéo chunk đúng từ hạng 9 lên hạng 4, cải thiện rõ và gần như đơn điệu, nhưng vì ngưỡng chấm là top-3 nên không đổi được điểm nào. Bài học: một chỉ số nhị phân theo ngưỡng (Hit@3) có thể che giấu hoàn toàn tiến bộ thật của hệ thống; đo bằng MRR hay Recall@5 thì overlap sẽ hiện ra là có ích.
+>
+> **Thứ thật sự quyết định là kích thước chunk, không phải overlap.** Cấu hình 300/50 đạt 8/10 trong khi 800/100 chỉ 7/10. Chunk ngắn hơn cho vector đặc trưng hơn, đổi lại số chunk tăng từ 59 lên 158 — chi phí embedding gấp gần ba lần.
+
+**Thành viên 3 — Trần Xuân Đức**
+- **Loại chiến lược:** `RecursiveChunker` — cấu hình đem chấm: `chunk_size=800`, separator mặc định `["\n\n", "\n", ". ", " ", ""]`
+- **Mô tả & lý do chọn:** Chiến lược này đứng giữa hai thái cực: nó tôn trọng ranh giới ngữ nghĩa như chia theo tiêu đề, nhưng không phụ thuộc vào việc nguồn có tiêu đề tử tế hay không. Thuật toán ưu tiên cắt ở ranh giới lớn nhất còn khả thi (đoạn văn), chỉ khi đoạn vẫn quá dài mới hạ xuống mức nhỏ hơn (dòng, câu, từ) — nên với văn bản chính sách vốn đã chia đoạn rõ ràng, phần lớn chunk trùng khít một đoạn điều khoản trọn vẹn.
+- **Kết quả:** 58 chunk, trung bình 665 ký tự, **9/10** điểm (điểm từng câu: 1, 2, 2, 2, 2) — **cao nhất nhóm**.
+- **Code snippet:** dùng `RecursiveChunker` có sẵn trong `src/chunking.py`, không sửa đổi.
+
+> **Quét tham số cho thấy một đánh đổi không hiển nhiên.** `chunk_size=300` cho 173 chunk và 8/10; `chunk_size=500` cho 94 chunk và 8/10; `chunk_size=800` cho 58 chunk và 9/10. Ở đây chunk **lớn hơn** lại tốt hơn, ngược với xu hướng quan sát được ở `FixedSizeChunker`. Lý do: vì thuật toán cắt theo ranh giới ngữ nghĩa, chunk lớn hơn nghĩa là giữ trọn cả một mục điều khoản thay vì xé nó ra; còn cắt cứng theo độ dài thì chunk lớn chỉ đơn thuần trộn thêm nội dung không liên quan.
+>
+> **Cấu hình 500 là cấu hình duy nhất trong toàn bộ nhóm lấy trọn 2 điểm ở câu 1** (điểm từng câu: 2, 1, 2, 1, 2) — câu mà `HeadingChunker` và `SentenceChunker` đều trượt sạch. Nó đổi 2 điểm ở câu 1 lấy 1 điểm ở câu 4, nên tổng vẫn là 8/10. Chi tiết này cho thấy xếp hạng theo tổng điểm che mất việc các cấu hình mạnh ở những câu khác nhau.
+
+**Thành viên 4 — Nguyễn Tiến Lượng**
+- **Loại chiến lược:** `SentenceChunker` — cấu hình đem chấm: `max_sentences_per_chunk=5`
+- **Mô tả & lý do chọn:** Câu là đơn vị ngữ nghĩa nhỏ nhất còn tự đứng vững được, nên cắt theo câu bảo đảm không bao giờ có chunk bắt đầu hoặc kết thúc giữa chừng một mệnh đề — điều mà cắt theo độ dài không tránh được. Với văn bản chính sách, mỗi điều kiện thường gói gọn trong một tới hai câu, nên nhóm 5 câu một chunk giữ được cả điều kiện lẫn ngoại lệ đi kèm.
+- **Kết quả:** 50 chunk, trung bình 769 ký tự, **8/10** điểm (điểm từng câu: 0, 2, 2, 2, 2).
+- **Code snippet:** dùng `SentenceChunker` có sẵn trong `src/chunking.py`, không sửa đổi.
+
+> **Quét tham số cho thấy số câu mỗi chunk ảnh hưởng mạnh.** `max=2` cho 117 chunk và 7/10; `max=3` cho 79 chunk và 7/10; `max=5` cho 50 chunk và 8/10. Chunk gom nhiều câu hơn thắng ở câu 2, vì tài liệu "Thời gian nhận tiền hoàn" liệt kê 8 phương thức hoàn tiền liên tiếp — gom 5 câu mới đủ chứa trọn cả tên phương thức lẫn con số tương ứng.
+>
+> **Điểm yếu lộ rõ ở câu 1: mọi cấu hình đều được 0 điểm.** Chunk chứa đáp án "6 ngày" không lọt top-3 ở bất kỳ giá trị `max` nào. Nguyên nhân: chiến lược này giữ câu trọn vẹn nhưng **không mang theo thông tin chunk thuộc mục nào**, nên một đoạn nói "trong vòng 6 ngày" không có gì gắn nó với khái niệm "sau khi Shopee chấp nhận yêu cầu". Đây đúng là khoảng trống mà breadcrumb tiêu đề của thành viên 1 lấp được — và cũng là chỗ breadcrumb phản tác dụng khi tiêu đề mô tả sai nội dung.
 
 ### So Sánh Giữa Các Thành Viên
 
-| Thành viên | Chiến lược (Strategy) | Điểm truy xuất (/10) | Điểm mạnh | Điểm yếu |
-|-----------|----------|----------------------|-----------|----------|
-| | | | | |
-| | | | | |
-| | | | | |
+Cùng corpus 10 tài liệu, cùng 5 câu hỏi, cùng embedder `LocalEmbedder` (`paraphrase-multilingual-MiniLM-L12-v2`). Chỉ khác chiến lược chia nhỏ.
+
+| Thành viên | Chiến lược (Strategy) | Số chunk | Độ dài TB | Điểm từng câu | Điểm truy xuất (/10) | Điểm mạnh | Điểm yếu |
+|-----------|----------|---------|-----------|---------------|----------------------|-----------|----------|
+| Trần Xuân Đức | `RecursiveChunker` (800) | 58 | 665 | 1, 2, 2, 2, 2 | **9** | Tôn trọng ranh giới ngữ nghĩa mà không cần nguồn có tiêu đề; là chiến lược duy nhất không bị 0 điểm ở câu nào | Không mang ngữ cảnh mục cha, nên câu 1 chỉ được 1 điểm thay vì 2 |
+| Phạm Long Nhật | `HeadingChunker` (breadcrumb) | 60 | 681 | 0, 2, 2, 2, 2 | 8 | Chunk trùng khít điều khoản; breadcrumb giúp chunk lẻ tự mô tả được ngữ cảnh; chunk câu 2 chỉ 171 ký tự nên đáp án rất sắc | Phụ thuộc hoàn toàn vào chất lượng tiêu đề nguồn; trượt trọn câu 1 vì tiêu đề mục mô tả sai trọng tâm |
+| Nguyễn Tiến Lượng | `SentenceChunker` (max=5) | 50 | 769 | 0, 2, 2, 2, 2 | 8 | Không bao giờ cắt giữa mệnh đề; cấu hình đơn giản, chỉ một tham số | Chunk không biết mình thuộc mục nào; trượt câu 1 ở mọi giá trị `max` |
+| Lê Thanh Tình | `FixedSizeChunker` (500/100) | 99 | 480 | 1, 1, 2, 1, 2 | 7 | Luôn chạy được, không giả định gì về cấu trúc; không bị tiêu đề đánh lừa nên vào được top-3 ở câu 1 | Cắt ngang bảng và ngang câu; câu 2 chỉ được 1 điểm ở **mọi** cấu hình overlap |
 
 **Chiến lược nào tốt nhất cho chủ đề này? Tại sao?**
-> *Viết 2-3 câu — đây là phần được đánh giá cao nhất (khả năng suy nghĩ & giải thích):*
+> `RecursiveChunker` với `chunk_size=800` tốt nhất, 9/10 — và lý do nó thắng nói lên bản chất của chủ đề. Văn bản chính sách Shopee đã được soạn thành đoạn rõ ràng, nhưng sau khi crawl thì **tiêu đề mục bị mất định dạng** (8/10 tài liệu chỉ còn đúng một `#`), trong khi **ranh giới đoạn vẫn còn nguyên**. `RecursiveChunker` cắt theo đoạn nên bám đúng thứ còn sống sót; `HeadingChunker` bám vào thứ đã hỏng một nửa; `FixedSizeChunker` và `SentenceChunker` thì không bám vào gì cả.
+>
+> Nhưng xếp hạng theo tổng điểm che mất điều quan trọng hơn: **bốn chiến lược mạnh ở những câu khác nhau và bù trừ cho nhau**. Câu 1 chỉ có `RecursiveChunker` (cấu hình 500) và `FixedSizeChunker` ghi được điểm, vì đó là câu mà tiêu đề mục — "3. Phân loại phương án xử lý" — không hề nhắc tới thời hạn, nên mọi chiến lược dựa vào tiêu đề đều bị đánh lừa. Ngược lại câu 2 và câu 4 thì `HeadingChunker` và `SentenceChunker` lấy trọn 2 điểm còn `FixedSizeChunker` chỉ được 1, vì hai câu đó cần chunk gói gọn đúng một mục.
+>
+> Kết luận thực dụng của nhóm: không có chiến lược nào thắng tuyệt đối, và lựa chọn đúng phụ thuộc vào **phần cấu trúc nào của nguồn còn sống sót sau khi thu thập**. Nếu nhóm làm sạch tay toàn bộ 10 tài liệu để khôi phục tiêu đề (như đã làm với `shopee-refund-timeline`), thứ hạng gần như chắc chắn sẽ đảo — vì đó chính là điều đã xảy ra với tài liệu đó: sau khi thêm heading cho từng phương thức hoàn tiền, `HeadingChunker` tách được 1 chunk thành 11 và lấy trọn 2 điểm ở câu 2.
 
 ---
 
@@ -188,11 +217,13 @@ Cả 5 câu trả lời chuẩn đã được đối chiếu ngược lại corp
 
 | # | Câu hỏi | Chiến lược tốt nhất cho câu này | Có chunk liên quan trong top-3? | Ghi chú |
 |---|---------|-------------------------------|-------------------------------|---------|
-| 1 | | | | |
-| 2 | | | | |
-| 3 | | | | |
-| 4 | | | | |
-| 5 | | | | |
+| 1 | Thời hạn gửi trả sản phẩm sau khi được chấp nhận | `RecursiveChunker` (500) — **2đ**, cấu hình duy nhất của cả nhóm lấy trọn điểm câu này | Có, với Recursive và Fixed. **Không** với Heading và Sentence | Câu khó nhất. Đáp án nằm dưới tiêu đề "3. Phân loại phương án xử lý" — tiêu đề không nhắc gì tới thời hạn, nên breadcrumb kéo vector đi chệch. Với `HeadingChunker`, chunk đúng rơi xuống hạng 13/60 (score 0.717 so với top-1 là 0.825) |
+| 2 | Thời gian hoàn tiền cho thẻ tín dụng/ghi nợ | `HeadingChunker` — **2đ**, chunk chỉ 171 ký tự chứa đúng một phương thức. `Sentence` (max=5) và `Recursive` (800) cũng 2đ | Có ở cả 4 chiến lược | `FixedSizeChunker` chỉ được 1đ ở **mọi** cấu hình overlap: tài liệu liệt kê 8 phương thức liên tiếp, cắt theo 500 ký tự gộp 3–4 phương thức vào một chunk nên không chunk nào đặc trưng cho riêng thẻ tín dụng |
+| 3 | Dung lượng video tối đa của bằng chứng | Hòa — cả 4 chiến lược đều **2đ** | Có ở cả 4 | Câu dễ nhất. Đáp án nằm gọn trong một mục có tiêu đề mô tả đúng nội dung ("4. Quy định về bằng chứng"), nên chiến lược nào cũng khoanh trúng |
+| 4 | Nhóm sản phẩm không áp dụng lý do "Đổi ý" | `HeadingChunker`, `Sentence`, `Recursive` (800) — **2đ** | Có ở cả 4 | `FixedSizeChunker` chỉ 1đ vì tài liệu `shopee-return-restrictions` ngắn (1.354 ký tự) và liệt kê 4 nhóm sản phẩm rải đều; cắt theo độ dài xé danh sách làm đôi |
+| 5 | Thời hạn phản hồi của người bán (lọc `audience: seller`) | Hòa — cả 4 chiến lược đều **2đ** | Có ở cả 4 | Câu này do `metadata_filter` quyết định chứ không phải chunking: lọc xong chỉ còn 1 tài liệu nên chiến lược nào cũng trúng. Chi tiết ở phần dưới |
+
+**Điểm cao nhất nhóm đạt được:** 9/10 (`RecursiveChunker` 800). Nếu ghép điểm tốt nhất của từng câu trên toàn nhóm thì được **10/10** — câu 1 lấy từ `RecursiveChunker` (500), bốn câu còn lại từ `HeadingChunker`. Điều này cho thấy một hệ thống thật nên kết hợp nhiều chiến lược chia nhỏ thay vì chọn một.
 
 **Lọc bằng metadata có giúp ích không? Ở câu hỏi nào?**
 > Có, rõ nhất ở câu 5 — câu duy nhất hỏi về nghĩa vụ của người bán. Với `metadata_filter={"audience": "seller"}`, không gian tìm kiếm thu từ 60 chunk xuống còn 6 chunk của `shopee-return-policy-seller`, và cả top-3 đều nằm trong tài liệu đúng đối tượng.
@@ -204,13 +235,25 @@ Cả 5 câu trả lời chuẩn đã được đối chiếu ngược lại corp
 ## 4. Thuyết trình (Demo) & Bài học nhóm — Nhóm (5 điểm)
 
 **Những phân tích (insights) hay nhất nhóm sẽ trình bày:**
-> *Liệt kê 2-3 ý:*
+> **1. Chỉ số theo ngưỡng che giấu tiến bộ thật.** Tăng overlap của `FixedSizeChunker` từ 0 lên 100 kéo chunk chứa đáp án câu 2 từ hạng 9/60 lên hạng 4/60 — cải thiện rõ ràng và gần như đơn điệu. Nhưng vì rubric chấm theo top-3, cải thiện này không đổi được một điểm nào, và nhìn vào bảng điểm sẽ kết luận sai rằng overlap vô dụng. Nếu đo bằng MRR hoặc Recall@5, kết luận sẽ ngược lại.
+>
+> **2. Chất lượng chunking bị quyết định từ khâu thu thập dữ liệu, không phải khâu chọn thuật toán.** Crawler làm mất định dạng tiêu đề ở 8/10 tài liệu và làm phẳng hoàn toàn một bảng. Chính vì vậy `RecursiveChunker` (bám ranh giới đoạn — thứ còn sống sót) thắng `HeadingChunker` (bám tiêu đề — thứ đã hỏng). Nhóm chứng minh được chiều ngược lại: sau khi làm sạch tay `shopee-refund-timeline` để khôi phục heading, `HeadingChunker` tách 1 chunk thành 11 và lấy trọn 2 điểm ở câu đó.
+>
+> **3. Có những khác biệt embedding không mã hóa được, phải xử lý bằng metadata.** Hai câu "Người mua có 7 ngày để gửi yêu cầu trả hàng" và "Người bán phải phản hồi khiếu nại trong 2 ngày lịch" đạt độ tương tự 0.506 — gần như không phân biệt nổi, dù chủ thể hoàn toàn khác nhau. Đây là lý do `search_with_filter` tồn tại, và là lý do trường `audience` được thiết kế ngay từ khâu thu thập chứ không phải thêm vào sau.
 
 **Bài học rút ra khi so sánh trong nhóm:**
-> *Viết 2-3 câu — cùng tài liệu nhưng chiến lược khác nhau dẫn tới khác biệt gì?*
+> Khoảng cách tổng điểm giữa bốn chiến lược rất hẹp — 7, 8, 8, 9 trên thang 10 — nhưng **phân bố điểm theo từng câu thì khác hẳn nhau**. `HeadingChunker` và `SentenceChunker` cùng được 8 điểm với đúng cùng một dạng `0, 2, 2, 2, 2`, trong khi `FixedSizeChunker` được 7 điểm theo dạng `1, 1, 2, 1, 2` — tức là điểm thấp hơn nhưng lại **không trượt câu nào**. Nếu tiêu chí là "không bao giờ bỏ sót hoàn toàn", `FixedSizeChunker` mới là lựa chọn an toàn nhất, dù tổng điểm thấp nhất.
+>
+> Bài học thứ hai: **điểm mạnh và điểm yếu đối xứng nhau**. Breadcrumb tiêu đề giúp `HeadingChunker` thắng ở câu 2 và câu 4, và chính nó làm `HeadingChunker` trượt câu 1 khi tiêu đề mục mô tả sai trọng tâm phần thân. Không có tham số nào chỉnh được điều đó — nó là hệ quả trực tiếp của giả định mà chiến lược đặt ra về dữ liệu.
+>
+> Bài học thứ ba: **hướng chỉnh tham số không giống nhau giữa các chiến lược**. Với `FixedSizeChunker`, chunk nhỏ hơn thì tốt hơn (300 được 8, 800 được 7). Với `RecursiveChunker` thì ngược lại (300 được 8, 800 được 9). Lý do là chunk lớn ở `Recursive` nghĩa là giữ trọn một đoạn, còn chunk lớn ở `Fixed` chỉ đơn thuần trộn thêm nội dung không liên quan. Không thể mang trực giác chỉnh tham số từ chiến lược này sang chiến lược khác.
 
 **Nếu làm lại, nhóm sẽ thay đổi gì trong chiến lược dữ liệu (data strategy)?**
-> *Viết 2-3 câu:*
+> **Cân bằng `audience` ngay từ đầu.** Corpus hiện lệch 9 `buyer` / 1 `seller`, nên câu 5 sau khi lọc chỉ còn đúng một tài liệu — cả 4 chiến lược đều trúng và câu đó mất hoàn toàn khả năng phân biệt. Nhóm sẽ thu thập thêm 3–4 tài liệu dành cho người bán để phép lọc vừa có ý nghĩa vừa còn tính cạnh tranh.
+>
+> **Làm sạch tay toàn bộ, không chỉ tài liệu hỏng nặng nhất.** Nhóm chỉ khôi phục heading cho `shopee-refund-timeline` vì nó hỏng rõ nhất, nhưng 7 tài liệu khác vẫn còn mục điều khoản nằm dưới dạng dòng văn bản thường. Đây là biến gây nhiễu lớn nhất trong toàn bộ phép so sánh: nó làm lợi cho các chiến lược không dựa vào tiêu đề và làm hại chiến lược dựa vào tiêu đề, nên kết quả đo được phản ánh chất lượng thu thập nhiều hơn là chất lượng thuật toán.
+>
+> **Thiết kế bộ câu hỏi đánh giá khó hơn và đo bằng nhiều chỉ số.** Ba trong năm câu được cả 4 chiến lược trả lời đúng, nên chỉ còn 2 câu thực sự phân biệt được — cỡ mẫu quá nhỏ để kết luận chắc chắn. Nhóm sẽ dùng 10–15 câu, cố ý bao gồm câu mà tiêu đề mục mô tả sai nội dung, và đo thêm MRR bên cạnh Hit@3 để không bỏ sót những cải thiện nằm dưới ngưỡng.
 
 ---
 
